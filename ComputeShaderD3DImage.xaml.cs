@@ -104,8 +104,8 @@ public unsafe partial class ComputeShaderD3DImage
     private TWindow.ComPtr<D3D12.ID3D12Resource> _d3D12Resource;
     private TWindow.ComPtr<D3D12.ID3D12Resource> _shardD3D12Resource;
 
-    private Silk.NET.Core.Native.ComPtr<D3D9.IDirect3D9Ex> _direct3D9Ex;
-    private Silk.NET.Core.Native.ComPtr<D3D9.IDirect3DDevice9Ex> _direct3DDevice9Ex;
+    private ComPtr<D3D9.IDirect3D9Ex> _direct3D9Ex;
+    private ComPtr<D3D9.IDirect3DDevice9Ex> _direct3DDevice9Ex;
 
     private void Grid_OnLoaded(object sender, RoutedEventArgs e)
     {
