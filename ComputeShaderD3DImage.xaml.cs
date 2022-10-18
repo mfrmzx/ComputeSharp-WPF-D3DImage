@@ -61,16 +61,16 @@ public unsafe partial class ComputeShaderD3DImage
         get => (int) GetValue(FixedFpsProperty);
         set => SetValue(FixedFpsProperty, value);
     }
-    
+
     public static readonly DependencyProperty ResolutionScaleProperty =
         DependencyProperty.Register(nameof(ResolutionScale), typeof(double), typeof(ComputeShaderD3DImage), new PropertyMetadata(1.0));
 
     public double ResolutionScale
     {
-        get => (double)GetValue(ResolutionScaleProperty);
+        get => (double) GetValue(ResolutionScaleProperty);
         set => SetValue(ResolutionScaleProperty, Math.Clamp(value, 0.1, 1.0));
     }
-    
+
 #endregion
 
     public ComputeShaderD3DImage()
@@ -88,8 +88,8 @@ public unsafe partial class ComputeShaderD3DImage
     private TimeSpan _actualRenderTime = TimeSpan.Zero;
     private TimeSpan _lastFrameRenderTime = TimeSpan.Zero;
     private TimeSpan _fixedFrameRenderTime;
-    private readonly Stopwatch _startStopwatch = new Stopwatch();
-    private readonly Stopwatch _frameStopwatch = new Stopwatch();
+    private readonly Stopwatch _startStopwatch = new();
+    private readonly Stopwatch _frameStopwatch = new();
 
     private bool _isResizePending;
 
@@ -428,6 +428,7 @@ public unsafe partial class ComputeShaderD3DImage
         {
             return;
         }
+
         _lastFpsRenderTime = _startStopwatch.Elapsed;
         _fps = _frameCount;
         FpsLabel.Content = _fps;
