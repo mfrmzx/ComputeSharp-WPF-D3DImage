@@ -1,0 +1,23 @@
+﻿<UserControl x:Class="YQCool.ComputeSharp.Wpf.ComputeShaderD3DImage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:Interop="clr-namespace:System.Windows.Interop;assembly=PresentationCore"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DesignHeight="300"
+             d:DesignWidth="300"
+             mc:Ignorable="d">
+    <Grid x:Name="ImageGrid"
+          Loaded="Grid_OnLoaded"
+          SizeChanged="Grid_OnSizeChanged">
+        <Image Stretch="Fill">
+            <Image.Source>
+                <Interop:D3DImage x:Name="InteropD3DImage" IsFrontBufferAvailableChanged="D3DImage_OnIsFrontBufferAvailableChanged" />
+            </Image.Source>
+        </Image>
+        <Label x:Name="FpsLabel"
+               HorizontalAlignment="Left"
+               VerticalAlignment="Top"
+               Foreground="GreenYellow" />
+    </Grid>
+</UserControl>
