@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -9,7 +10,6 @@ using Silk.NET.Core.Native;
 using D3D9 = Silk.NET.Direct3D9;
 using D3D12 = TerraFX.Interop.DirectX;
 using TWindow = TerraFX.Interop.Windows;
-#pragma warning disable CS0618
 
 namespace YQCool.ComputeSharp.Wpf;
 
@@ -76,6 +76,7 @@ public unsafe partial class ComputeShaderD3DImage
     public ComputeShaderD3DImage()
     {
         InitializeComponent();
+        Dispose();
     }
 
     private Size _imageSize;
@@ -84,9 +85,7 @@ public unsafe partial class ComputeShaderD3DImage
     private int _frameCount;
 
     private TimeSpan _lastFpsRenderTime = TimeSpan.Zero;
-    private TimeSpan _totalRenderTime = TimeSpan.Zero;
     private TimeSpan _actualRenderTime = TimeSpan.Zero;
-    private TimeSpan _lastFrameRenderTime = TimeSpan.Zero;
     private TimeSpan _fixedFrameRenderTime;
     private readonly Stopwatch _startStopwatch = new();
     private readonly Stopwatch _frameStopwatch = new();
@@ -95,20 +94,18 @@ public unsafe partial class ComputeShaderD3DImage
 
     private ulong _nextD3D12FenceValue = 1;
 
-    private readonly TWindow.ComPtr<D3D12.ID3D12Device> _d3D12Device;
-    private readonly TWindow.ComPtr<D3D12.ID3D12CommandAllocator> _d3D12CommandAllocator;
-    private readonly TWindow.ComPtr<D3D12.ID3D12GraphicsCommandList> _d3D12GraphicsCommandList;
-    private readonly TWindow.ComPtr<D3D12.ID3D12CommandQueue> _d3D12CommandQueue;
-    private readonly TWindow.ComPtr<D3D12.ID3D12Fence> _d3D12Fence;
+    private TWindow.ComPtr<D3D12.ID3D12Device> _d3D12Device;
+    private TWindow.ComPtr<D3D12.ID3D12CommandAllocator> _d3D12CommandAllocator;
+    private TWindow.ComPtr<D3D12.ID3D12GraphicsCommandList> _d3D12GraphicsCommandList;
+    private TWindow.ComPtr<D3D12.ID3D12CommandQueue> _d3D12CommandQueue;
+    private TWindow.ComPtr<D3D12.ID3D12Fence> _d3D12Fence;
 
     private ReadWriteTexture2D<Rgba32, float4>? _texture;
-    private readonly TWindow.ComPtr<D3D12.ID3D12Resource> _d3D12Resource;
-    private readonly TWindow.ComPtr<D3D12.ID3D12Resource> _shardD3D12Resource;
+    private TWindow.ComPtr<D3D12.ID3D12Resource> _d3D12Resource;
+    private TWindow.ComPtr<D3D12.ID3D12Resource> _shardD3D12Resource;
 
-    private D3D9.IDirect3D9Ex* _direct3D9Ex;
-    private D3D9.IDirect3DDevice9Ex* _direct3DDevice9Ex;
-    private D3D9.IDirect3DTexture9* _direct3DTexture9;
-    private D3D9.IDirect3DSurface9* _direct3DSurface9;
+    private Silk.NET.Core.Native.ComPtr<D3D9.IDirect3D9Ex> _direct3D9Ex;
+    private Silk.NET.Core.Native.ComPtr<D3D9.IDirect3DDevice9Ex> _direct3DDevice9Ex;
 
     private void Grid_OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -129,11 +126,6 @@ public unsafe partial class ComputeShaderD3DImage
 
     private void CompositionTarget_Rendering(object? sender, EventArgs e)
     {
-        if (e is RenderingEventArgs args)
-        {
-            _totalRenderTime = args.RenderingTime;
-        }
-
         Update();
     }
 
@@ -146,33 +138,36 @@ public unsafe partial class ComputeShaderD3DImage
     private void InitializeD3D9Divice()
     {
         var d3d9 = D3D9.D3D9.GetApi();
-        D3D9.IDirect3D9Ex* direct3D9Ex;
-        var hr = d3d9.Direct3DCreate9Ex(32, &direct3D9Ex);
-        SilkMarshal.ThrowHResult(hr);
-        _direct3D9Ex = direct3D9Ex;
+        int hr;
+        fixed (D3D9.IDirect3D9Ex** direct3D9Ex = _direct3D9Ex)
+        {
+            hr = d3d9.Direct3DCreate9Ex(32, direct3D9Ex);
+            SilkMarshal.ThrowHResult(hr);
+        }
 
         var presentParameters = new D3D9.PresentParameters
         {
             Windowed = 1, // true
-            SwapEffect = D3D9.Swapeffect.SwapeffectDiscard,
-            HDeviceWindow = new WindowInteropHelper(Window.GetWindow(this)).Handle,
+            SwapEffect = D3D9.Swapeffect.Discard,
+            HDeviceWindow = GetDesktopWindow(),
             PresentationInterval = D3D9.D3D9.PresentIntervalDefault
         };
 
         // 设置使用多线程方式，这样的性能才足够
         uint createFlags = D3D9.D3D9.CreateHardwareVertexprocessing | D3D9.D3D9.CreateMultithreaded | D3D9.D3D9.CreateFpuPreserve;
 
-        D3D9.IDirect3DDevice9Ex* direct3DDevice9Ex;
-        hr = _direct3D9Ex->CreateDeviceEx(0,
-            D3D9.Devtype.DevtypeHal, // 使用硬件渲染
-            IntPtr.Zero,
-            createFlags,
-            ref presentParameters,
-            (D3D9.Displaymodeex*) IntPtr.Zero,
-            &direct3DDevice9Ex);
-        SilkMarshal.ThrowHResult(hr);
+        fixed (D3D9.IDirect3DDevice9Ex** direct3DDevice9Ex = _direct3DDevice9Ex)
+        {
+            hr = _direct3D9Ex.Handle->CreateDeviceEx(0,
+                D3D9.Devtype.Hal, // 使用硬件渲染
+                IntPtr.Zero,
+                createFlags,
+                ref presentParameters,
+                (D3D9.Displaymodeex*) IntPtr.Zero,
+                direct3DDevice9Ex);
+            SilkMarshal.ThrowHResult(hr);
+        }
 
-        _direct3DDevice9Ex = direct3DDevice9Ex;
     }
 
     private void InitializeD3D12Divice()
@@ -255,22 +250,20 @@ public unsafe partial class ComputeShaderD3DImage
     private void CreateShardResource()
     {
         void* sharedHandle = null;
-
-        D3D9.IDirect3DTexture9* direct3DTexture9;
-        var hr = _direct3DDevice9Ex->CreateTexture((uint) _imageSize.Width, (uint) _imageSize.Height, 1,
+        D3D9.IDirect3DTexture9* direct3DTexture9 = default;
+        var hr = _direct3DDevice9Ex.Handle->CreateTexture((uint) _imageSize.Width, (uint) _imageSize.Height, 1,
             D3D9.D3D9.UsageRendertarget,
-            D3D9.Format.FmtA8R8G8B8, // 这是必须要求的颜色，不能使用其他颜色
-            D3D9.Pool.PoolDefault,
+            D3D9.Format.A8R8G8B8, // 这是必须要求的颜色，不能使用其他颜色
+            D3D9.Pool.Default,
             &direct3DTexture9,
             ref sharedHandle
         );
         SilkMarshal.ThrowHResult(hr);
 
-        _direct3DTexture9 = direct3DTexture9;
 
-        D3D9.IDirect3DSurface9* direct3DSurface9;
-        _direct3DTexture9->GetSurfaceLevel(0, &direct3DSurface9);
-        _direct3DSurface9 = direct3DSurface9;
+        D3D9.IDirect3DSurface9* direct3DSurface9 = default;
+        hr = direct3DTexture9->GetSurfaceLevel(0, &direct3DSurface9);
+        SilkMarshal.ThrowHResult(hr);
 
         fixed (D3D12.ID3D12Resource** shardD3D12Resource = _shardD3D12Resource)
         {
@@ -282,7 +275,7 @@ public unsafe partial class ComputeShaderD3DImage
         try
         {
             InteropD3DImage.Lock();
-            InteropD3DImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, new IntPtr(_direct3DSurface9));
+            InteropD3DImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, new IntPtr(direct3DSurface9));
         }
         finally
         {
@@ -331,7 +324,6 @@ public unsafe partial class ComputeShaderD3DImage
             return;
         }
 
-        _lastFrameRenderTime = _frameStopwatch.Elapsed;
         _frameStopwatch.Restart();
         try
         {
@@ -438,7 +430,21 @@ public unsafe partial class ComputeShaderD3DImage
     public void Dispose()
     {
         CompositionTarget.Rendering -= CompositionTarget_Rendering;
+        _d3D12Device.Dispose();
+        _d3D12CommandAllocator.Dispose();
+        _d3D12GraphicsCommandList.Dispose();
+        _d3D12CommandQueue.Dispose();
+        _d3D12Fence.Dispose();
         _texture?.Dispose();
+        _d3D12Resource.Dispose();
+        _shardD3D12Resource.Dispose();
+
+        _direct3D9Ex.Dispose();
+        _direct3DDevice9Ex.Dispose();
+
         ShaderRunner = null;
     }
+
+    [DllImport("user32.dll", SetLastError = false)]
+    public static extern IntPtr GetDesktopWindow();
 }
