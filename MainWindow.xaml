@@ -12,10 +12,24 @@
         <Wpf:ComputeShaderD3DImage x:Name="ComputeShaderD3DImage" IsShowFps="True" />
         <Button Width="40"
                 Height="30"
+                Margin="10,10,110,10"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Click="PauseButton_OnClick"
+                Content="暂停" />
+        <Button Width="40"
+                Height="30"
+                Margin="10,10,60,10"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Click="LastButton_OnClick"
+                Content="上一个" />
+        <Button Width="40"
+                Height="30"
                 Margin="10"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
-                Click="ButtonBase_OnClick"
-                Content="暂停" />
+                Click="NextButton_OnClick"
+                Content="下一个" />
     </Grid>
 </Window>

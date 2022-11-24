@@ -112,6 +112,10 @@ public unsafe partial class ComputeShaderD3DImage
         _fixedFrameRenderTime = new TimeSpan(TimeSpan.TicksPerSecond / FixedFps);
         Initialize();
         CompositionTarget.Rendering += CompositionTarget_Rendering;
+        if (Application.Current.MainWindow != null)
+        {
+            Application.Current.MainWindow.Closed += (_, _) => Dispose();
+        }
     }
 
     private void Grid_OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -131,6 +135,7 @@ public unsafe partial class ComputeShaderD3DImage
 
     private void Initialize()
     {
+        OnReSize();
         InitializeD3D9Divice();
         InitializeD3D12Divice();
     }
@@ -154,7 +159,7 @@ public unsafe partial class ComputeShaderD3DImage
         };
 
         // 设置使用多线程方式，这样的性能才足够
-        uint createFlags = D3D9.D3D9.CreateHardwareVertexprocessing | D3D9.D3D9.CreateMultithreaded | D3D9.D3D9.CreateFpuPreserve;
+        const uint createFlags = D3D9.D3D9.CreateHardwareVertexprocessing | D3D9.D3D9.CreateMultithreaded | D3D9.D3D9.CreateFpuPreserve;
 
         fixed (D3D9.IDirect3DDevice9Ex** direct3DDevice9Ex = _direct3DDevice9Ex)
         {
@@ -236,7 +241,7 @@ public unsafe partial class ComputeShaderD3DImage
 
     private void OnReSize()
     {
-        _imageSize = Utils.WpfSizeToPixels(ImageGrid);
+        _imageSize = WpfUtils.WpfSizeToPixels(ImageGrid);
         _imageSize = new Size(_imageSize.Width * ResolutionScale, _imageSize.Height * ResolutionScale);
         _isResizePending = true;
     }
@@ -328,8 +333,10 @@ public unsafe partial class ComputeShaderD3DImage
         try
         {
             InteropD3DImage.Lock();
-            RunShader(_startStopwatch.Elapsed);
-            InteropD3DImage.AddDirtyRect(new Int32Rect(0, 0, InteropD3DImage.PixelWidth, InteropD3DImage.PixelHeight));
+            if (RunShader(_startStopwatch.Elapsed))
+            {
+                InteropD3DImage.AddDirtyRect(new Int32Rect(0, 0, InteropD3DImage.PixelWidth, InteropD3DImage.PixelHeight));
+            }
         }
         finally
         {
@@ -342,11 +349,11 @@ public unsafe partial class ComputeShaderD3DImage
         }
     }
 
-    private void RunShader(TimeSpan time)
+    private bool RunShader(TimeSpan time)
     {
         if (ShaderRunner == null)
         {
-            return;
+            return false;
         }
 
         if (_isResizePending)
@@ -357,15 +364,17 @@ public unsafe partial class ComputeShaderD3DImage
 
         if (_actualRenderTime == time)
         {
-            return;
+            return false;
         }
 
         ShaderRunner.TryExecute(_texture!, time);
         _actualRenderTime = time;
 
         // Reset the command list and command allocator
-        _d3D12CommandAllocator.Get()->Reset();
-        _d3D12GraphicsCommandList.Get()->Reset(_d3D12CommandAllocator.Get(), null);
+        var hr = _d3D12CommandAllocator.Get()->Reset();
+        SilkMarshal.ThrowHResult(hr);
+        hr = _d3D12GraphicsCommandList.Get()->Reset(_d3D12CommandAllocator.Get(), null);
+        SilkMarshal.ThrowHResult(hr);
 
         var d3D12ResourceBarriers = stackalloc D3D12.D3D12_RESOURCE_BARRIER[]
         {
@@ -398,19 +407,22 @@ public unsafe partial class ComputeShaderD3DImage
         // Transition the resources back to COMMON and UNORDERED_ACCESS respectively
         _d3D12GraphicsCommandList.Get()->ResourceBarrier(2, d3D12ResourceBarriers);
 
-        _d3D12GraphicsCommandList.Get()->Close();
+        hr = _d3D12GraphicsCommandList.Get()->Close();
+        SilkMarshal.ThrowHResult(hr);
 
         // Execute the command list to perform the copy
         _d3D12CommandQueue.Get()->ExecuteCommandLists(1, (D3D12.ID3D12CommandList**) _d3D12GraphicsCommandList.GetAddressOf());
-        _d3D12CommandQueue.Get()->Signal(_d3D12Fence.Get(), _nextD3D12FenceValue);
+        hr = _d3D12CommandQueue.Get()->Signal(_d3D12Fence.Get(), _nextD3D12FenceValue);
+        SilkMarshal.ThrowHResult(hr);
 
         if (_nextD3D12FenceValue > _d3D12Fence.Get()->GetCompletedValue())
         {
-            _d3D12Fence.Get()->SetEventOnCompletion(_nextD3D12FenceValue, default);
+            hr = _d3D12Fence.Get()->SetEventOnCompletion(_nextD3D12FenceValue, default);
+            SilkMarshal.ThrowHResult(hr);
         }
 
         _nextD3D12FenceValue++;
-
+        return true;
     }
 
     private void CalculateFps()

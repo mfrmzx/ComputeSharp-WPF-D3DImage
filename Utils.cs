@@ -2,7 +2,7 @@
 
 namespace YQCool.ComputeSharp.Wpf;
 
-internal class Utils
+internal class WpfUtils
 {
     public static Size WpfSizeToPixels(FrameworkElement element)
     {
